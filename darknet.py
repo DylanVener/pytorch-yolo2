@@ -124,7 +124,7 @@ class Darknet(nn.Module):
                 continue
             else:
                 print('unknown type %s' % (block['type']))
-        return x
+        return x, outputs
 
     def print_network(self):
         print_cfg(self.blocks)

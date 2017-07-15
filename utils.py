@@ -174,6 +174,8 @@ def get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors, onl
                         bh = hs[ind]
                         cls_max_conf = cls_max_confs[ind]
                         cls_max_id = cls_max_ids[ind]
+                        if cls_max_id != 0:
+                            continue
                         box = [bcx/w, bcy/h, bw/w, bh/h, det_conf, cls_max_conf, cls_max_id]
                         if (not only_objectness) and validation:
                             for c in range(num_classes):
@@ -192,6 +194,20 @@ def get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors, onl
         print('---------------------------------')
     return all_boxes
 
+def find_bounds(img, boxes):
+    width = img.size(2)
+    height = img.size(3)
+    bounds = []
+    for i in range(len(boxes)):
+        box = boxes[i]
+        x1 = (box[0] - box[2]/2.0) * width
+        y1 = (box[1] - box[3]/2.0) * height
+        x2 = (box[0] + box[2]/2.0) * width
+        y2 = (box[1] + box[3]/2.0) * height
+        bounds.append([x1,x2,y1,y2])
+
+    return bounds
+
 def plot_boxes(img, boxes, savename, class_names=None):
     colors = torch.FloatTensor([[1,0,1],[0,0,1],[0,1,1],[0,1,0],[1,1,0],[1,0,0]]);
     def get_color(c, x, max_val):
@@ -205,13 +221,14 @@ def plot_boxes(img, boxes, savename, class_names=None):
     width = img.width
     height = img.height
     draw = ImageDraw.Draw(img)
+    bounds = []
     for i in range(len(boxes)):
         box = boxes[i]
         x1 = (box[0] - box[2]/2.0) * width
         y1 = (box[1] - box[3]/2.0) * height
         x2 = (box[0] + box[2]/2.0) * width
         y2 = (box[1] + box[3]/2.0) * height
-
+        bounds.append([x1,x2,y1,y2])
         rgb = (255, 0, 0)
         if len(box) >= 7 and class_names:
             cls_conf = box[5]
@@ -226,6 +243,7 @@ def plot_boxes(img, boxes, savename, class_names=None):
             draw.text((x1, y1), class_names[cls_id], fill=rgb)
         draw.rectangle([x1, y1, x2, y2], outline = rgb)
     img.save(savename)
+    return bounds
 
 def read_truths(lab_path):
     if os.path.getsize(lab_path):
@@ -280,7 +298,7 @@ def do_detect(model, img, conf_thresh, nms_thresh, use_cuda=1):
     img = torch.autograd.Variable(img)
     t2 = time.time()
 
-    output = model(img)
+    output, layers = model(img)
     output = output.data
     #for j in range(100):
     #    sys.stdout.write('%f ' % (output.storage()[j]))
@@ -304,7 +322,7 @@ def do_detect(model, img, conf_thresh, nms_thresh, use_cuda=1):
         print('             nms : %f' % (t5 - t4))
         print('           total : %f' % (t5 - t0))
         print('-----------------------------------')
-    return boxes
+    return boxes, layers
 
 def read_data_cfg(datacfg):
     options = dict()
